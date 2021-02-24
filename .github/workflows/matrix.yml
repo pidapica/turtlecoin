@@ -5,7 +5,7 @@ on:
   release:
     types: [published]
   schedule:
-    - cron: '30 3 * * 0'
+    - cron: "30 3 * * 0"
 
 env:
   TAG: ${{ github.ref }}
@@ -19,21 +19,21 @@ jobs:
       fail-fast: false
       matrix:
         # Add more compilers here if you need them
-        build_name: ['Ubuntu GCC 7', 'Ubuntu GCC 8', 'aarch64']
+        build_name: ["Ubuntu GCC 7", "Ubuntu GCC 8", "aarch64"]
         include:
-          - build_name: 'Ubuntu GCC 7'
-            package_name: 'gcc-7 g++-7'
+          - build_name: "Ubuntu GCC 7"
+            package_name: "gcc-7 g++-7"
             cc: gcc-7
             cxx: g++-7
             label: linux-gcc-7
             deployable: false
-          - build_name: 'Ubuntu GCC 8'
-            package_name: 'gcc-8 g++-8'
+          - build_name: "Ubuntu GCC 8"
+            package_name: "gcc-8 g++-8"
             cc: gcc-8
             cxx: g++-8
             label: linux
             deployable: true
-          - build_name: 'aarch64'
+          - build_name: "aarch64"
             label: aarch64
             deployable: true
     env:
@@ -66,6 +66,17 @@ jobs:
           CC: ${{ matrix.cc }}
           CXX: ${{ matrix.cxx }}
         run: |
+          export SONAR_SCANNER_VERSION=4.4.0.2170
+          export SONAR_SCANNER_HOME=$HOME/.sonar/sonar-scanner-$SONAR_SCANNER_VERSION-linux
+          curl --create-dirs -sSLo $HOME/.sonar/sonar-scanner.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-$SONAR_SCANNER_VERSION-linux.zip
+          unzip -o $HOME/.sonar/sonar-scanner.zip -d $HOME/.sonar/
+          export PATH=$SONAR_SCANNER_HOME/bin:$PATH
+          export SONAR_SCANNER_OPTS="-server"
+
+          curl --create-dirs -sSLo $HOME/.sonar/build-wrapper-linux-x86.zip https://sonarcloud.io/static/cpp/build-wrapper-linux-x86.zip
+          unzip -o $HOME/.sonar/build-wrapper-linux-x86.zip -d $HOME/.sonar/
+          export PATH=$HOME/.sonar/build-wrapper-linux-x86:$PATH
+
           mkdir build && cd build
           cmake -DARCH=default -DCMAKE_BUILD_TYPE=Release -DSTATIC=true ..
 
@@ -73,8 +84,11 @@ jobs:
       - name: Build
         if: matrix.build_name != 'aarch64'
         run: |
-          cd build
-          make -j2
+          build-wrapper-linux-x86-64 --out-dir bw-output cmake --build build -- -j 2
+          sonar-scanner
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Needed to get PR information, if any
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
       # Build for aarch64
       - name: Prepare and Build (aarch64)
@@ -197,7 +211,6 @@ jobs:
           echo ::set-output name=artifact_name::turtlecoin-${LABEL}-${TAG}
           echo ::set-output name=file_name::turtlecoin-${LABEL}-${TAG}.tar.gz
 
-
       # Upload to GH Release
       - name: Upload to GH Release
         if: github.event_name == 'release'
@@ -287,7 +300,6 @@ jobs:
           echo ::set-output name=binary_path::turtlecoin-${TAG}
           echo ::set-output name=artifact_name::turtlecoin-${LABEL}-${TAG}
           echo ::set-output name=file_name::turtlecoin-${LABEL}-${TAG}.zip
-
 
       # Upload to GH Release
       - name: Upload to GH Release
